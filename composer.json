@@ -1,0 +1,28 @@
+{
+    "name": "statamic-addon/bard-style",
+    "description": "Bard style marks, toolbar buttons and inline style utilities",
+    "type": "statamic-addon",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "statamic/cms": "^6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "StatamicAddon\\BardStyle\\": "src/"
+        }
+    },
+    "extra": {
+        "statamic": {
+            "name": "Bard Style",
+            "provider": "StatamicAddon\\BardStyle\\AddonServiceProvider"
+        },
+        "laravel": {
+            "providers": [
+                "StatamicAddon\\BardStyle\\AddonServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
