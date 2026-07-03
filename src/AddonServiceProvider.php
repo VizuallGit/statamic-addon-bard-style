@@ -22,6 +22,8 @@ class AddonServiceProvider extends BaseAddonServiceProvider
         Augmentor::addExtension('vizuStyle',         new Marks\StyleMark);
         Augmentor::addExtension('btsSpan',           new Marks\BtsSpan);
         Augmentor::addExtension('vizuParagraphStyle', new Extensions\ParagraphStyle);
+        Augmentor::addExtension('vizuDiv',             new Extensions\VizuDiv);
+        Augmentor::addExtension('vizuBlockStyle',      new Extensions\ParagraphBlockStyle);
         Augmentor::addExtension('vizuSpanClass',     new Marks\SpanClass);
 
         $allStyles = config('statamic.bard_styles.styles', []);

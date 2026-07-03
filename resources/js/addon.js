@@ -30,6 +30,37 @@
         } catch { return null; }
     }
 
+    function readVizuBlockProp(editor, prop) {
+        try {
+            const { $from } = editor.state.selection;
+            let styleStr = '';
+            for (let d = $from.depth; d >= 0; d--) {
+                const node = $from.node(d);
+                if ((node.type.name === 'paragraph' || node.type.name === 'heading') && node.attrs.vizuBlockStyle) {
+                    styleStr = node.attrs.vizuBlockStyle; break;
+                }
+            }
+            if (!styleStr) return null;
+            const escaped = prop.replace(/[-]/g, '\\-');
+            const r = new RegExp(`(?:^|;)\\s*${escaped}:\\s*([^;]+)`, 'i');
+            const match = styleStr.match(r);
+            return match ? match[1].trim() : null;
+        } catch { return null; }
+    }
+
+    function readVizuClass(editor) {
+        try {
+            const { $from } = editor.state.selection;
+            for (let d = $from.depth; d >= 0; d--) {
+                const node = $from.node(d);
+                if ((node.type.name === 'paragraph' || node.type.name === 'heading') && node.attrs.vizuClass) {
+                    return node.attrs.vizuClass;
+                }
+            }
+            return null;
+        } catch { return null; }
+    }
+
     // ── Swatch-fetch (cached, bruges af farveknappen) ──────────────────────
     let _swatchesCache = null;
     function fetchSwatches() {
@@ -79,13 +110,13 @@
     // ── Bard color mark + toolbar button ─────────────────────────────────────
 
     Statamic.booting(() => {
-        Statamic.$bard.buttons(buttons => {
-            buttons.push({
+        Statamic.$bard.buttons((buttons, makeButton) => {
+            buttons.push(makeButton({
                 name:      'color',
                 text:      'Tekstfarve',
                 component: 'bard-button-color',
                 html:      '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37-1.34-1.34a1 1 0 0 0-1.41 0L9 12.25 11.75 15l8.96-8.96a1 1 0 0 0 0-1.41z"/></svg>',
-            });
+            }));
         });
     });
 
@@ -124,10 +155,12 @@
                         const nodes = [];
                         state.doc.nodesBetween(from, to, (node, pos) => { if (node.isText) nodes.push({ node, pos }); });
                         nodes.forEach(({ node, pos }) => {
+                            const nodeFrom = Math.max(from, pos);
+                            const nodeTo   = Math.min(to, pos + node.nodeSize);
                             const m        = node.marks.find(m => m.type === vizuType);
                             const newStyle = fn(m?.attrs.style || null);
-                            if (m) tr.removeMark(pos, pos + node.nodeSize, vizuType);
-                            if (newStyle) tr.addMark(pos, pos + node.nodeSize, vizuType.create({ style: newStyle }));
+                            tr.removeMark(nodeFrom, nodeTo, vizuType);
+                            if (newStyle) tr.addMark(nodeFrom, nodeTo, vizuType.create({ style: newStyle }));
                         });
                         if (dispatch) dispatch(tr);
                         return true;
@@ -363,7 +396,7 @@
                         removeBtn.onmouseenter = () => { removeBtn.style.color = '#f87171'; };
                         removeBtn.onmouseleave = () => { removeBtn.style.color = '#a1a1aa'; };
                         removeBtn.addEventListener('click', () => {
-                            props.editor.chain().focus().extendMarkRange('vizuStyle').clearVizuProp('color').run();
+                            props.editor.chain().focus().clearVizuProp('color').run();
                             closePortal();
                         });
                         header.appendChild(removeBtn);
@@ -384,9 +417,9 @@
                         btn.onmouseleave = () => { btn.style.transform = 'scale(1)'; };
                         btn.addEventListener('click', () => {
                             if (active) {
-                                props.editor.chain().focus().extendMarkRange('vizuStyle').clearVizuProp('color').run();
+                                props.editor.chain().focus().clearVizuProp('color').run();
                             } else {
-                                props.editor.chain().focus().extendMarkRange('vizuStyle').setVizuProp('color', stored).run();
+                                props.editor.chain().focus().setVizuProp('color', stored).run();
                             }
                             closePortal();
                         });
@@ -468,13 +501,150 @@
         });
     });
 
+    // ── vizuDiv — wrapper-node til block-indhold (fx two-columns) ───────────
+    Statamic.booting(() => {
+        Statamic.$bard.addExtension(({ tiptap }) => {
+            return tiptap.core.Node.create({
+                name: 'vizuDiv',
+                group: 'block',
+                content: 'block+',
+                defining: true,
+
+                addAttributes() {
+                    return { class: { default: null } };
+                },
+
+                parseHTML() {
+                    return [{ tag: 'div[data-vzd]' }];
+                },
+
+                renderHTML({ node }) {
+                    const attrs = { 'data-vzd': '' };
+                    if (node.attrs.class) attrs.class = node.attrs.class;
+                    return ['div', attrs, 0];
+                },
+
+                addCommands() {
+                    return {
+                        toggleVizuDiv: (cls) => ({ state, commands }) => {
+                            const { $from } = state.selection;
+                            for (let d = $from.depth; d > 0; d--) {
+                                const n = $from.node(d);
+                                if (n.type.name === 'vizuDiv' && n.attrs.class === cls) {
+                                    return commands.lift('vizuDiv');
+                                }
+                            }
+                            return commands.wrapIn('vizuDiv', { class: cls });
+                        },
+                    };
+                },
+            });
+        });
+    });
+
     // ── Bard Style-knapper ────────────────────────────────────────────────────
     Statamic.booting(() => {
-        const allStyles = Statamic.$config.get('bard-styles') || [];
+        const allStyles = Object.values(Statamic.$config.get('bard-styles') || []);
         const allGroups = Statamic.$config.get('bard-groups') || {};
         if (!allStyles.length) return;
 
-        const { h, ref, onMounted, onUnmounted } = window.Vue;
+        const { h, ref, onMounted, onUnmounted, getCurrentInstance, withDirectives, resolveDirective } = window.Vue;
+
+        function withTooltip(vnode, text) {
+            const vTooltip = resolveDirective('tooltip');
+            return vTooltip ? withDirectives(vnode, [[vTooltip, text]]) : vnode;
+        }
+
+        function renderIdent(ident, fallback) {
+            const str = ident || fallback || '?';
+            if (typeof str === 'string' && str.trimStart().startsWith('<')) {
+                return h('span', { innerHTML: str, style: 'display:inline-flex;align-items:center;pointer-events:none' });
+            }
+            return str;
+        }
+
+        // Inject CP CSS so div-styles (fx two-columns) vises korrekt i editoren
+        const divCssParts = allStyles
+            .filter(s => s.type === 'div' && s.class && s.cp_css)
+            .map(s => `[data-vzd].${s.class}{${s.cp_css}}`);
+        if (divCssParts.length && !document.getElementById('cp-vizu-div-styles')) {
+            const el = document.createElement('style');
+            el.id = 'cp-vizu-div-styles';
+            el.textContent = divCssParts.join('\n');
+            document.head.appendChild(el);
+        }
+
+        // JS Tiptap-extension: tilføjer vizuClass og vizuBlockStyle som attributter på paragraph/heading
+        Statamic.$bard.addExtension(({ tiptap }) => {
+            const knownVizuClasses = allStyles.filter(s => s.type === 'paragraph' && s.class).map(s => s.class);
+            return tiptap.core.Extension.create({
+                name: 'vizuBlockAttrs',
+                addGlobalAttributes() {
+                    return [{
+                        types: ['paragraph', 'heading'],
+                        attributes: {
+                            vizuClass: {
+                                default: null,
+                                parseHTML: el => {
+                                    const cls = el.getAttribute('class');
+                                    return (cls && knownVizuClasses.includes(cls)) ? cls : null;
+                                },
+                                renderHTML: attrs => attrs.vizuClass ? { class: attrs.vizuClass } : {},
+                            },
+                            vizuBlockStyle: {
+                                default: null,
+                                parseHTML: el => el.getAttribute('data-vbs') || null,
+                                renderHTML: attrs => attrs.vizuBlockStyle
+                                    ? { 'data-vbs': attrs.vizuBlockStyle, style: attrs.vizuBlockStyle }
+                                    : {},
+                            },
+                        },
+                    }];
+                },
+                addCommands() {
+                    function forEachBlock(state, fn) {
+                        const { from, to } = state.selection;
+                        const tr = state.tr;
+                        state.doc.nodesBetween(from, to, (node, pos) => {
+                            if (node.type.name === 'paragraph' || node.type.name === 'heading') fn(node, pos, tr);
+                        });
+                        return tr;
+                    }
+                    return {
+                        setVizuBlockProp: (prop, value) => ({ state, dispatch }) => {
+                            const tr = forEachBlock(state, (node, pos, tr) => {
+                                const newStyle = setCssProp(node.attrs.vizuBlockStyle || '', prop, value) || null;
+                                tr.setNodeMarkup(pos, undefined, { ...node.attrs, vizuBlockStyle: newStyle });
+                            });
+                            if (dispatch) dispatch(tr.scrollIntoView());
+                            return true;
+                        },
+                        clearVizuBlockProp: (prop) => ({ state, dispatch }) => {
+                            const tr = forEachBlock(state, (node, pos, tr) => {
+                                const newStyle = setCssProp(node.attrs.vizuBlockStyle || '', prop, null) || null;
+                                tr.setNodeMarkup(pos, undefined, { ...node.attrs, vizuBlockStyle: newStyle });
+                            });
+                            if (dispatch) dispatch(tr.scrollIntoView());
+                            return true;
+                        },
+                        setVizuClass: (cls) => ({ state, dispatch }) => {
+                            const tr = forEachBlock(state, (node, pos, tr) => {
+                                tr.setNodeMarkup(pos, undefined, { ...node.attrs, vizuClass: cls });
+                            });
+                            if (dispatch) dispatch(tr.scrollIntoView());
+                            return true;
+                        },
+                        clearVizuClass: () => ({ state, dispatch }) => {
+                            const tr = forEachBlock(state, (node, pos, tr) => {
+                                tr.setNodeMarkup(pos, undefined, { ...node.attrs, vizuClass: null });
+                            });
+                            if (dispatch) dispatch(tr.scrollIntoView());
+                            return true;
+                        },
+                    };
+                },
+            });
+        });
 
         const groupedMap = {};
         const ungrouped  = [];
@@ -499,7 +669,11 @@
 
                     function getActive() {
                         for (const s of groupStyles) {
-                            if (s.prop && readVizuProp(props.editor, s.prop) === s.value) return s;
+                            if (s.target === 'block') {
+                                if (s.prop && readVizuBlockProp(props.editor, s.prop) === s.value) return s;
+                            } else if (s.type === 'paragraph') {
+                                if (readVizuClass(props.editor) === s.class) return s;
+                            } else if (s.prop && readVizuProp(props.editor, s.prop) === s.value) return s;
                         }
                         return null;
                     }
@@ -525,16 +699,27 @@
                             btn.addEventListener('mouseover', () => { if (!isCur) btn.style.background = 'rgba(255,255,255,.07)'; });
                             btn.addEventListener('mouseout',  () => { if (!isCur) btn.style.background = 'transparent'; });
                             btn.addEventListener('click', () => {
-                                if (isCur) {
-                                    props.editor.chain().focus().extendMarkRange('vizuStyle').clearVizuProp(style.prop).run();
+                                if (style.target === 'block') {
+                                    if (isCur) props.editor.chain().focus().clearVizuBlockProp(style.prop).run();
+                                    else props.editor.chain().focus().setVizuBlockProp(style.prop, style.value).run();
+                                } else if (style.type === 'paragraph') {
+                                    if (isCur) props.editor.chain().focus().clearVizuClass().run();
+                                    else props.editor.chain().focus().setVizuClass(style.class).run();
                                 } else {
-                                    props.editor.chain().focus().extendMarkRange('vizuStyle').setVizuProp(style.prop, style.value).run();
+                                    if (isCur) props.editor.chain().focus().clearVizuProp(style.prop).run();
+                                    else props.editor.chain().focus().setVizuProp(style.prop, style.value).run();
                                 }
                                 closePortal();
                             });
                             const badge = document.createElement('span');
                             badge.style.cssText = `display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:18px;padding:0 3px;border-radius:3px;font-size:9px;font-weight:700;font-family:monospace;background:${isCur ? '#3b82f6' : 'rgba(255,255,255,.15)'};color:${isCur ? '#fff' : '#94a3b8'};flex-shrink:0;`;
-                            badge.textContent = style.ident;
+                            const identStr = style.ident || '?';
+                            if (typeof identStr === 'string' && identStr.trimStart().startsWith('<')) {
+                                badge.innerHTML = identStr;
+                                badge.style.padding = '0 1px';
+                            } else {
+                                badge.textContent = identStr;
+                            }
                             btn.appendChild(badge);
                             const label = document.createElement('span');
                             label.style.cssText = 'font-size:12px;flex:1;';
@@ -596,13 +781,13 @@
 
                     return () => {
                         const active = activeStyle.value;
+                        const btn = h('button', {
+                            type: 'button',
+                            class: ['bard-toolbar-button', (isOpen.value || !!active) && 'active'].filter(Boolean).join(' '),
+                            onClick: toggle,
+                        }, renderIdent(active ? active.ident : groupMeta.ident, groupName[0].toUpperCase()));
                         return h('div', { ref: container, style: 'display:inline-flex' }, [
-                            h('button', {
-                                type: 'button',
-                                class: ['bard-toolbar-button', (isOpen.value || !!active) && 'active'].filter(Boolean).join(' '),
-                                title: groupMeta.name || groupName,
-                                onClick: toggle,
-                            }, active ? active.ident : (groupMeta.ident || groupName[0].toUpperCase())),
+                            withTooltip(btn, groupMeta.name || groupName),
                         ]);
                     };
                 },
@@ -611,6 +796,7 @@
 
         function buildIndividualComponent(style) {
             const isParagraph = style.type === 'paragraph';
+            const isDiv       = style.type === 'div';
             return {
                 props: { editor: { type: Object, required: true }, button: { type: Object, default: null }, bard: { type: Object, default: null }, config: { type: Object, default: null } },
                 setup(props) {
@@ -618,9 +804,20 @@
 
                     function check() {
                         queueMicrotask(() => {
-                            if (isParagraph) {
-                                const attrs = props.editor.getAttributes('vizuSpanClass');
-                                isActive.value = attrs?.class === style.class;
+                            if (isDiv) {
+                                try {
+                                    const { $from } = props.editor.state.selection;
+                                    let found = false;
+                                    for (let d = $from.depth; d > 0; d--) {
+                                        const n = $from.node(d);
+                                        if (n.type.name === 'vizuDiv' && n.attrs.class === style.class) { found = true; break; }
+                                    }
+                                    isActive.value = found;
+                                } catch { isActive.value = false; }
+                            } else if (style.target === 'block') {
+                                isActive.value = readVizuBlockProp(props.editor, style.prop) === style.value;
+                            } else if (isParagraph) {
+                                isActive.value = readVizuClass(props.editor) === style.class;
                             } else {
                                 isActive.value = readVizuProp(props.editor, style.prop) === style.value;
                             }
@@ -637,50 +834,55 @@
                     });
 
                     function toggle() {
-                        if (isParagraph) {
-                            if (isActive.value) {
-                                props.editor.chain().focus().extendMarkRange('vizuSpanClass').unsetMark('vizuSpanClass').run();
-                            } else {
-                                props.editor.chain().focus().setMark('vizuSpanClass', { class: style.class }).run();
-                            }
+                        if (isDiv) {
+                            props.editor.chain().focus().toggleVizuDiv(style.class).run();
+                        } else if (style.target === 'block') {
+                            if (isActive.value) props.editor.chain().focus().clearVizuBlockProp(style.prop).run();
+                            else props.editor.chain().focus().setVizuBlockProp(style.prop, style.value).run();
+                        } else if (isParagraph) {
+                            if (isActive.value) props.editor.chain().focus().clearVizuClass().run();
+                            else props.editor.chain().focus().setVizuClass(style.class).run();
                         } else if (isActive.value) {
-                            props.editor.chain().focus().extendMarkRange('vizuStyle').clearVizuProp(style.prop).run();
+                            props.editor.chain().focus().clearVizuProp(style.prop).run();
                         } else {
-                            props.editor.chain().focus().extendMarkRange('vizuStyle').setVizuProp(style.prop, style.value).run();
+                            props.editor.chain().focus().setVizuProp(style.prop, style.value).run();
                         }
                     }
 
-                    return () => h('button', {
+                    return () => withTooltip(h('button', {
                         type: 'button',
                         class: ['bard-toolbar-button', isActive.value && 'active'].filter(Boolean).join(' '),
-                        title: style.name,
                         onClick: toggle,
-                    }, style.ident || '?');
+                    }, renderIdent(style.ident)), style.name);
                 },
             };
         }
 
-        Statamic.$bard.buttons((buttons, makeButton) => {
+        Statamic.$bard.buttons(function(buttons, makeButton) {
+            const { markRaw } = window.Vue;
             const toAdd = [];
 
-            Object.entries(groupedMap).forEach(([groupName, groupStyles]) => {
-                const meta = allGroups[groupName] || {};
+            // Grupper i den rækkefølge de er defineret under 'groups' i bard_styles.php
+            Object.keys(allGroups).forEach(groupName => {
+                if (!groupedMap[groupName]) return;
+                const meta = allGroups[groupName];
                 const slug = groupName.replace(/_/g, '-');
                 toAdd.push(makeButton({
                     name:      `bard-group-${slug}`,
                     text:      meta.name || groupName,
-                    html:      meta.ident || groupName[0].toUpperCase(),
-                    component: buildGroupComponent(groupName, groupStyles, meta),
+                    html:      (typeof meta.ident === 'string' && meta.ident.trimStart().startsWith('<')) ? (meta.name || groupName)[0].toUpperCase() : (meta.ident || groupName[0].toUpperCase()),
+                    component: markRaw(buildGroupComponent(groupName, groupedMap[groupName], meta)),
                 }));
             });
 
+            // Ungrouped styles i den rækkefølge de er defineret under 'styles'
             ungrouped.forEach(style => {
                 const slug = style.handle.replace(/_/g, '-');
                 toAdd.push(makeButton({
                     name:      `bard-${slug}`,
                     text:      style.name,
-                    html:      style.ident || '?',
-                    component: buildIndividualComponent(style),
+                    html:      (typeof style.ident === 'string' && style.ident.trimStart().startsWith('<')) ? (style.name || '?')[0].toUpperCase() : (style.ident || '?'),
+                    component: markRaw(buildIndividualComponent(style)),
                 }));
             });
 
