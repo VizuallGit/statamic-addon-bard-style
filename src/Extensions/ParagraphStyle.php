@@ -2,6 +2,7 @@
 
 namespace StatamicAddon\BardStyle\Extensions;
 
+use StatamicAddon\BardStyle\Styles;
 use Tiptap\Core\Extension;
 
 class ParagraphStyle extends Extension
@@ -10,7 +11,7 @@ class ParagraphStyle extends Extension
 
     public function addGlobalAttributes()
     {
-        $styles = config('statamic.bard_styles.styles', []);
+        $styles = Styles::styles();
         $paragraphStyles = array_filter(
             $styles,
             fn ($s) => ($s['type'] ?? 'span') === 'paragraph' && ! empty($s['class'])

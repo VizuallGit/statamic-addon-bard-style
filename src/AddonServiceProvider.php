@@ -26,12 +26,18 @@ class AddonServiceProvider extends BaseAddonServiceProvider
         Augmentor::addExtension('vizuBlockStyle',      new Extensions\ParagraphBlockStyle);
         Augmentor::addExtension('vizuSpanClass',     new Marks\SpanClass);
 
-        $allStyles = config('statamic.bard_styles.styles', []);
-        $allGroups = config('statamic.bard_styles.groups', []);
+        // Only the CP's toolbar script reads these; a public page has no reason
+        // to open the settings file.
+        if (! Statamic::isCpRoute()) {
+            return;
+        }
 
+        // `bard-styles-source` also tells the Visual Editor that this version
+        // serves the list at bard-style/styles, so its popup can edit it.
         Statamic::provideToScript([
-            'bard-styles' => $allStyles,
-            'bard-groups' => $allGroups,
+            'bard-styles' => Styles::styles(),
+            'bard-groups' => Styles::groupMap(),
+            'bard-styles-source' => Styles::all()['source'],
         ]);
     }
 }

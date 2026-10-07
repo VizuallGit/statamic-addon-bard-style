@@ -2,6 +2,7 @@
 
 namespace StatamicAddon\BardStyle\Marks;
 
+use StatamicAddon\BardStyle\Styles;
 use Tiptap\Core\Mark;
 
 class BtsSpan extends Mark
@@ -14,11 +15,11 @@ class BtsSpan extends Mark
     {
         if (static::$styleMap !== null) return static::$styleMap;
 
-        $styles = config('statamic.bard_styles.styles', []);
+        $styles = Styles::styles();
         $map    = [];
 
         foreach ($styles as $style) {
-            if (($style['type'] ?? 'span') !== 'span') continue;
+            if (($style['type'] ?? 'span') !== 'span' || empty($style['prop'])) continue;
             $cls       = str_replace('_', '-', $style['handle']);
             $map[$cls] = ['prop' => $style['prop'], 'value' => $style['value']];
         }
