@@ -445,7 +445,7 @@
 
                         const label = document.createElement('div');
                         label.textContent = 'Highlighted colors';
-                        label.style.cssText = 'font-size:0.625rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.25rem 0.625rem';
+                        label.style.cssText = 'font-size:0.625rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.25rem 0.875rem';
                         group.appendChild(label);
 
                         // Lidt mindre end paletten, så gruppen læses som noget andet.
