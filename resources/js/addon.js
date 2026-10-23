@@ -440,18 +440,18 @@
                     div.appendChild(grid);
 
                     if (highlights.length) {
-                        const rule = document.createElement('div');
-                        rule.style.cssText = 'height:1px;background:#3f3f46;margin:0.625rem 0.25rem 0.5rem';
-                        div.appendChild(rule);
+                        const group = document.createElement('div');
+                        group.style.cssText = 'margin:0.5rem 0.25rem 0;padding:0.5rem 0.25rem 0.375rem;border-radius:0.625rem;background:rgba(255,255,255,.07)';
 
                         const label = document.createElement('div');
                         label.textContent = 'Highlights';
-                        label.style.cssText = 'font-size:0.6875rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.5rem 0.5rem';
-                        div.appendChild(label);
+                        label.style.cssText = 'font-size:0.6875rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.25rem 0.5rem';
+                        group.appendChild(label);
 
                         const row = makeGrid();
                         highlights.forEach(s => addSwatch(row, s));
-                        div.appendChild(row);
+                        group.appendChild(row);
+                        div.appendChild(group);
                     }
                 }
 
