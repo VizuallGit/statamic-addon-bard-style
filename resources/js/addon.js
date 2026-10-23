@@ -409,13 +409,13 @@
                         return grid;
                     };
 
-                    const addSwatch = (grid, { hex, var: cssVar }) => {
+                    const addSwatch = (grid, { hex, var: cssVar }, size = '1.5rem') => {
                         const stored = cssVar ? `var(${cssVar})` : hex;
                         const btn    = document.createElement('button');
                         btn.type     = 'button';
                         btn.title    = cssVar ? `${cssVar} — ${hex}` : hex;
                         const active = stored === current;
-                        btn.style.cssText = `width:24px;height:24px;border-radius:50%;background:${hex};border:2px solid ${active ? '#fff' : 'transparent'};cursor:pointer;outline:${active ? '2px solid '+hex : 'none'};outline-offset:2px;transition:transform .1s`;
+                        btn.style.cssText = `width:${size};height:${size};border-radius:50%;background:${hex};border:2px solid ${active ? '#fff' : 'transparent'};cursor:pointer;outline:${active ? '2px solid '+hex : 'none'};outline-offset:2px;transition:transform .1s`;
                         btn.onmouseenter = () => { btn.style.transform = 'scale(1.18)'; };
                         btn.onmouseleave = () => { btn.style.transform = 'scale(1)'; };
                         btn.addEventListener('click', () => {
@@ -431,7 +431,7 @@
 
                     // Paletten først; highlights (navne der peger på en
                     // palettefarve, sendt sidst af color-scheme) på deres
-                    // egen række under en streg.
+                    // egen boks med baggrund og etiket.
                     const palette    = swatches.filter(s => !s.highlight);
                     const highlights = swatches.filter(s => s.highlight);
 
@@ -441,15 +441,16 @@
 
                     if (highlights.length) {
                         const group = document.createElement('div');
-                        group.style.cssText = 'margin:0.5rem 0.25rem 0;padding:0.5rem 0.25rem 0.375rem;border-radius:0.625rem;background:rgba(255,255,255,.07)';
+                        group.style.cssText = 'margin:0.5rem 0.25rem 0;padding:0.75rem 0.5rem;border-radius:0.625rem;background:rgba(255,255,255,.07)';
 
                         const label = document.createElement('div');
-                        label.textContent = 'Highlights';
-                        label.style.cssText = 'font-size:0.6875rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.25rem 0.5rem';
+                        label.textContent = 'Highlighted colors';
+                        label.style.cssText = 'font-size:0.625rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.25rem 0.625rem';
                         group.appendChild(label);
 
+                        // Lidt mindre end paletten, så gruppen læses som noget andet.
                         const row = makeGrid();
-                        highlights.forEach(s => addSwatch(row, s));
+                        highlights.forEach(s => addSwatch(row, s, '1.25rem'));
                         group.appendChild(row);
                         div.appendChild(group);
                     }
