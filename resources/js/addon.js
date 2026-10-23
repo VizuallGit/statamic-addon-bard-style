@@ -403,10 +403,13 @@
                     }
                     div.appendChild(header);
 
-                    const grid = document.createElement('div');
-                    grid.style.cssText = `display:grid;grid-template-columns:repeat(${COLS},1fr);gap:4px;padding:0 4px`;
+                    const makeGrid = () => {
+                        const grid = document.createElement('div');
+                        grid.style.cssText = `display:grid;grid-template-columns:repeat(${COLS},1fr);gap:4px;padding:0 4px`;
+                        return grid;
+                    };
 
-                    swatches.forEach(({ hex, var: cssVar }) => {
+                    const addSwatch = (grid, { hex, var: cssVar }) => {
                         const stored = cssVar ? `var(${cssVar})` : hex;
                         const btn    = document.createElement('button');
                         btn.type     = 'button';
@@ -424,8 +427,27 @@
                             closePortal();
                         });
                         grid.appendChild(btn);
-                    });
+                    };
+
+                    // Paletten først; highlights (navne der peger på en
+                    // palettefarve, sendt sidst af color-scheme) på deres
+                    // egen række under en streg.
+                    const palette    = swatches.filter(s => !s.highlight);
+                    const highlights = swatches.filter(s => s.highlight);
+
+                    const grid = makeGrid();
+                    palette.forEach(s => addSwatch(grid, s));
                     div.appendChild(grid);
+
+                    if (highlights.length) {
+                        const rule = document.createElement('div');
+                        rule.style.cssText = 'height:1px;background:#3f3f46;margin:0.5rem 0.25rem';
+                        div.appendChild(rule);
+
+                        const row = makeGrid();
+                        highlights.forEach(s => addSwatch(row, s));
+                        div.appendChild(row);
+                    }
                 }
 
                 function openPortal() {
