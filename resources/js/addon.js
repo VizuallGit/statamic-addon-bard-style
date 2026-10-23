@@ -441,8 +441,13 @@
 
                     if (highlights.length) {
                         const rule = document.createElement('div');
-                        rule.style.cssText = 'height:1px;background:#3f3f46;margin:0.5rem 0.25rem';
+                        rule.style.cssText = 'height:1px;background:#3f3f46;margin:0.625rem 0.25rem 0.5rem';
                         div.appendChild(rule);
+
+                        const label = document.createElement('div');
+                        label.textContent = 'Highlights';
+                        label.style.cssText = 'font-size:0.6875rem;line-height:1;font-weight:600;letter-spacing:0.02em;color:#a1a1aa;padding:0 0.5rem 0.5rem';
+                        div.appendChild(label);
 
                         const row = makeGrid();
                         highlights.forEach(s => addSwatch(row, s));
